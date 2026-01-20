@@ -4,114 +4,142 @@ import { CSS } from '@dnd-kit/utilities';
 import TaskModal from '../Modals/TaskModal';
 import ConfirmDialog from '../Modals/ConfirmDialog';
 import { useBoard } from '../../context/BoardContext';
+import { useTheme } from '../../context/ThemeContext';
 import { getInitials, formatDate } from '../../utils/helpers';
 
 const PRIORITY_CONFIG = {
-  high: { icon: '↑', color: 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/30' },
-  medium: { icon: '=', color: 'text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-900/30' },
-  low: { icon: '↓', color: 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/30' },
+  high: { icon: '↑', light: 'text-red-600 bg-red-50', dark: 'text-red-400 bg-red-900/30' },
+  medium: { icon: '=', light: 'text-yellow-600 bg-yellow-50', dark: 'text-yellow-400 bg-yellow-900/30' },
+  low: { icon: '↓', light: 'text-green-600 bg-green-50', dark: 'text-green-400 bg-green-900/30' },
 };
 
-const TaskCard = memo(({ task, isDragOverlay = false }) => {
+const TaskCard = memo(({ task, isDragOverlay }) => {
   const { deleteTask } = useBoard();
-  const [modal, setModal] = useState({ edit: false, delete: false, actions: false });
-
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-    data: { type: 'task', task },
-  });
-
-  const toggle = useCallback((key, value) => setModal(m => ({ ...m, [key]: value ?? !m[key] })), []);
-  const handleDelete = useCallback(() => { deleteTask(task.id); toggle('delete', false); }, [deleteTask, task.id, toggle]);
-
+  const { theme } = useTheme();
+  const [modal, setModal] = useState({});
+  
+  const isDark = theme === 'dark';
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
 
-  // Drag Overlay - Simplified render
-  if (isDragOverlay) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-md p-3 border-2 border-blue-500 shadow-2xl rotate-2 scale-105">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{task.title}</h3>
-      </div>
-    );
-  }
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = 
+    useSortable({ id: task.id, data: { type: 'task', task } });
+
+  const toggle = useCallback((key, value) => setModal(state => ({ ...state, [key]: value ?? !state[key] })), []);
+
+  if (isDragOverlay) return (
+    <div className={`p-3 rounded-md border-2 border-blue-500 shadow-2xl rotate-2 scale-105 ${isDark ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-900'}`}>
+      <h3 className="text-sm font-medium line-clamp-2">{task.title}</h3>
+    </div>
+  );
 
   return (
     <>
       <div
         ref={setNodeRef}
         style={{ transform: CSS.Transform.toString(transform), transition }}
-        className={`group relative bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 shadow-sm transition-all select-none touch-manipulation
+        className={`group relative rounded-md border shadow-sm select-none touch-manipulation transition-all
+          ${isDark ? 'bg-gray-800 border-gray-700 hover:border-gray-600' : 'bg-white border-gray-200 hover:border-gray-300'}
           ${isDragging ? 'opacity-50 ring-2 ring-blue-500/50' : 'hover:shadow-md active:scale-[0.98]'}`}
-        onContextMenu={e => e.preventDefault()}
-      >
+        onContextMenu={event => event.preventDefault()}>
+
         {/* Drag Handle */}
-        <div
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          className="absolute left-0 inset-y-0 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-l-md touch-none"
-        >
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M7 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4zm6-12a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/>
-          </svg>
+        <div ref={setActivatorNodeRef} {...attributes} {...listeners}
+          className={`absolute left-0 inset-y-0 w-7 flex items-center justify-center cursor-grab active:cursor-grabbing rounded-l-md touch-none
+            ${isDark ? 'text-gray-600 hover:bg-gray-700/50' : 'text-gray-300 hover:bg-gray-50'}`}>
+          ⋮⋮
         </div>
 
         {/* Content */}
-        <div className="pl-8 pr-3 py-3" onClick={() => toggle('edit', true)} role="button" tabIndex={0}>
+        <div className="pl-7 pr-2 py-2.5 cursor-pointer" onClick={() => toggle('edit', true)}>
           
-          {/* Desktop Actions */}
-          <div className="absolute top-2 right-2 hidden md:flex gap-0.5 opacity-0 group-hover:opacity-100 z-10">
-            {[
-              { action: () => toggle('edit', true), icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z', hover: 'hover:text-blue-600' },
-              { action: () => toggle('delete', true), icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16', hover: 'hover:text-red-600' },
-            ].map((btn, i) => (
-              <button key={i} onClick={e => { e.stopPropagation(); btn.action(); }} className={`p-1.5 rounded text-gray-400 ${btn.hover} hover:bg-gray-100 dark:hover:bg-gray-700`}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={btn.icon}/></svg>
-              </button>
-            ))}
+          {/* Actions */}
+          <div className="absolute top-1.5 right-1.5 z-10 flex gap-0.5">
+            <button onClick={event => { event.stopPropagation(); toggle('edit', true); }} 
+              className={`p-1 rounded hidden md:block opacity-0 group-hover:opacity-100 
+                ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-400' : 'hover:bg-gray-100 text-gray-400 hover:text-blue-600'}`}>
+              ✏️
+            </button>
+            <button onClick={event => { event.stopPropagation(); toggle('delete', true); }} 
+              className={`p-1 rounded hidden md:block opacity-0 group-hover:opacity-100 
+                ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-600'}`}>
+              🗑️
+            </button>
+            <button onClick={event => { event.stopPropagation(); toggle('menu'); }} 
+              className={`p-1.5 md:hidden ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              ⋯
+            </button>
           </div>
 
-          {/* Mobile Actions */}
-          <button onClick={e => { e.stopPropagation(); toggle('actions'); }} className="absolute top-2 right-2 p-2 md:hidden text-gray-400 z-10">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z"/></svg>
-          </button>
-
-          {/* Mobile Dropdown */}
-          {modal.actions && (
-            <>
-              <div className="fixed inset-0 z-20" onClick={() => toggle('actions', false)} />
-              <div className="absolute top-10 right-2 z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[120px]">
-                <button onClick={e => { e.stopPropagation(); toggle('edit', true); toggle('actions', false); }} className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 active:bg-gray-100">Edit</button>
-                <button onClick={e => { e.stopPropagation(); toggle('delete', true); toggle('actions', false); }} className="w-full px-4 py-2.5 text-left text-sm text-red-600 active:bg-red-50">Delete</button>
-              </div>
-            </>
-          )}
+          {/* Mobile Menu */}
+          {modal.menu && <>
+            <div className="fixed inset-0 z-20" onClick={() => toggle('menu', false)} />
+            <div className={`absolute top-9 right-1 z-30 rounded-lg shadow-lg py-1 min-w-[100px] border 
+              ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+              <button onClick={() => { toggle('edit', true); toggle('menu', false); }} 
+                className={`block w-full px-3 py-2 text-left text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                Edit
+              </button>
+              <button onClick={() => { toggle('delete', true); toggle('menu', false); }} 
+                className="block w-full px-3 py-2 text-left text-sm text-red-500">
+                Delete
+              </button>
+            </div>
+          </>}
 
           {/* Title & Description */}
-          <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2 pr-8 mb-1">{task.title}</h3>
-          {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mb-2">{task.description}</p>}
+          <h3 className={`text-sm font-medium line-clamp-2 pr-6 mb-1 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+            {task.title}
+          </h3>
+          {task.description && (
+            <p className={`text-xs line-clamp-1 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {task.description}
+            </p>
+          )}
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700/50">
-            <div className="flex items-center gap-2">
-              <span className={`w-5 h-5 rounded text-xs font-bold flex items-center justify-center ${priority.color}`}>{priority.icon}</span>
-              {task.dueDate && <span className="text-xs text-gray-400">{formatDate(task.dueDate)}</span>}
+          <div className={`flex items-center justify-between pt-1.5 border-t ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-5 h-5 rounded text-xs font-bold flex items-center justify-center ${isDark ? priority.dark : priority.light}`}>
+                {priority.icon}
+              </span>
+              {task.dueDate && (
+                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {formatDate(task.dueDate)}
+                </span>
+              )}
             </div>
+            
             {task.assignee ? (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ring-white dark:ring-gray-800" title={task.assignee}>
-                <span className="text-[10px] font-semibold text-white">{getInitials(task.assignee)}</span>
+              <div className={`w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ${isDark ? 'ring-gray-800' : 'ring-white'}`} 
+                title={task.assignee}>
+                <span className="text-[9px] font-semibold text-white">{getInitials(task.assignee)}</span>
               </div>
             ) : (
-              <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
-                <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/></svg>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center ring-2 text-xs text-gray-400 
+                ${isDark ? 'bg-gray-700 ring-gray-800' : 'bg-gray-200 ring-white'}`}>
+                ?
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <TaskModal isOpen={modal.edit} onClose={() => toggle('edit', false)} task={task} onRequestDelete={() => toggle('delete', true)} />
-      <ConfirmDialog isOpen={modal.delete} onClose={() => toggle('delete', false)} onConfirm={handleDelete} title="Delete Task" message={`Delete "${task.title}"?`} confirmText="Delete" variant="danger" />
+      {/* Modals */}
+      <TaskModal 
+        isOpen={modal.edit} 
+        onClose={() => toggle('edit', false)} 
+        task={task} 
+        onRequestDelete={() => toggle('delete', true)} 
+      />
+      <ConfirmDialog 
+        isOpen={modal.delete} 
+        onClose={() => toggle('delete', false)} 
+        onConfirm={() => { deleteTask(task.id); toggle('delete', false); }} 
+        title="Delete Task" 
+        message={`Delete "${task.title}"?`} 
+        confirmText="Delete" 
+        variant="danger" 
+      />
     </>
   );
 });

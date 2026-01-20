@@ -1,180 +1,192 @@
-import { memo, useEffect, useState, useCallback } from 'react';
+import { memo, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useBoard } from '../../context/BoardContext';
-import Button from '../UI/Button';
-import Input from '../UI/Input';
-import Select from '../UI/Select';
+import { useTheme } from '../../context/ThemeContext';
 import { PRIORITIES, PRIORITY_LABELS } from '../../constants';
 
-const CloseIcon = () => (
-  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const initialFormState = {
-  title: '',
-  description: '',
-  priority: PRIORITIES.MEDIUM,
-  assignee: '',
-};
+const init = { title: '', description: '', priority: PRIORITIES.MEDIUM, assignee: '' };
 
 const TaskModal = memo(({ isOpen, onClose, task = null, onRequestDelete }) => {
   const { addTask, updateTask } = useBoard();
-  const [formData, setFormData] = useState(initialFormState);
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const isEditing = Boolean(task);
+  const { theme } = useTheme();
+  const [form, setForm] = useState(init);
+  const [error, setError] = useState('');
+  const isEdit = Boolean(task);
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     if (isOpen) {
-      if (task) {
-        setFormData({
-          title: task.title || '',
-          description: task.description || '',
-          priority: task.priority || PRIORITIES.MEDIUM,
-          assignee: task.assignee || '',
-        });
-      } else {
-        setFormData(initialFormState);
-      }
-      setErrors({});
+      setForm(task || init);
+      setError('');
       document.body.style.overflow = 'hidden';
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen, task]);
 
   useEffect(() => {
-    const onEsc = (e) => e.key === 'Escape' && onClose();
-    if (isOpen) document.addEventListener('keydown', onEsc);
-    return () => document.removeEventListener('keydown', onEsc);
+    const esc = (e) => e.key === 'Escape' && onClose();
+    isOpen && addEventListener('keydown', esc);
+    return () => removeEventListener('keydown', esc);
   }, [isOpen, onClose]);
 
-  const validateForm = useCallback(() => {
-    const newErrors = {};
-    if (!formData.title.trim()) newErrors.title = 'Title is required';
-    if (formData.title.length > 100) newErrors.title = 'Max 100 characters';
-    if (formData.description.length > 500) newErrors.description = 'Max 500 characters';
-    if (formData.assignee && formData.assignee.length > 50) newErrors.assignee = 'Max 50 characters';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [formData]);
+  const onChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
-  }, [errors]);
-
-  const handleSubmit = useCallback((e) => {
+  const onSubmit = (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
-    setIsSubmitting(true);
-    try {
-      if (isEditing) {
-        updateTask(task.id, formData);
-      } else {
-        addTask(formData);
-      }
-      onClose();
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [validateForm, isEditing, updateTask, addTask, task, formData, onClose]);
+    if (!form.title?.trim()) return setError('Title required');
+    isEdit ? updateTask(task.id, form) : addTask(form);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+  // Theme-based styles
+  const styles = {
+    backdrop: isDark ? 'bg-black/60' : 'bg-black/30',
+    modal: isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200',
+    headerBorder: isDark ? 'border-gray-800' : 'border-gray-100',
+    title: isDark ? 'text-white' : 'text-gray-900',
+    closeBtn: isDark 
+      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' 
+      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100',
+    label: isDark ? 'text-gray-300' : 'text-gray-700',
+    input: isDark 
+      ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+      : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400',
+    inputFocus: isDark ? 'focus:bg-gray-800' : 'focus:bg-white',
+    cancelBtn: isDark 
+      ? 'text-gray-300 bg-gray-800 hover:bg-gray-700' 
+      : 'text-gray-600 bg-gray-100 hover:bg-gray-200',
+    deleteBtn: isDark 
+      ? 'text-red-400 hover:bg-red-900/20' 
+      : 'text-red-600 hover:bg-red-50',
+  };
 
-      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-xl font-bold">{isEditing ? 'Edit Task' : 'Create New Task'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-            <CloseIcon />
+  const inputClass = `
+    w-full px-4 py-2.5 rounded-lg outline-none transition-all
+    border focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
+    ${styles.input} ${styles.inputFocus}
+  `;
+
+  const modalContent = (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className={`absolute inset-0 backdrop-blur-sm ${styles.backdrop}`} onClick={onClose} />
+
+      {/* Modal */}
+      <div className={`relative w-full max-w-lg rounded-2xl shadow-xl border ${styles.modal}`}>
+        
+        {/* Header */}
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${styles.headerBorder}`}>
+          <h2 className={`text-lg font-semibold ${styles.title}`}>
+            {isEdit ? 'Edit Task' : 'New Task'}
+          </h2>
+          <button onClick={onClose} className={`p-2 rounded-lg transition-colors ${styles.closeBtn}`}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <Input
-            label="Title"
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            placeholder="Enter task title..."
-            error={errors.title}
-            required
-            autoFocus
-          />
+        {/* Form */}
+        <form onSubmit={onSubmit} className="p-6 space-y-4">
+          {/* Title */}
+          <div>
+            <label className={`block text-sm font-medium mb-1.5 ${styles.label}`}>
+              Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              name="title"
+              value={form.title}
+              onChange={onChange}
+              placeholder="Task title..."
+              autoFocus
+              className={`${inputClass} ${error ? 'border-red-400' : ''}`}
+            />
+            {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+          </div>
 
-          <div className="w-full">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          {/* Description */}
+          <div>
+            <label className={`block text-sm font-medium mb-1.5 ${styles.label}`}>
               Description
             </label>
             <textarea
               name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={4}
-              placeholder="Enter task description..."
-              className={`
-                w-full px-4 py-2.5 rounded-lg
-                bg-white dark:bg-gray-800
-                border border-gray-300 dark:border-gray-600
-                text-gray-900 dark:text-white
-                placeholder-gray-400 dark:placeholder-gray-500
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                transition-all duration-200 resize-none
-                ${errors.description ? 'border-red-500 focus:ring-red-500' : ''}
-              `}
+              value={form.description}
+              onChange={onChange}
+              rows={3}
+              placeholder="Description..."
+              className={`${inputClass} resize-none`}
             />
-            {errors.description && <p className="mt-1.5 text-sm text-red-500">{errors.description}</p>}
           </div>
 
+          {/* Priority & Assignee */}
           <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Priority"
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-              options={Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
-              placeholder="Select priority"
-            />
-            <Input
-              label="Assignee"
-              name="assignee"
-              value={formData.assignee}
-              onChange={handleChange}
-              placeholder="Enter name..."
-              error={errors.assignee}
-            />
+            <div>
+              <label className={`block text-sm font-medium mb-1.5 ${styles.label}`}>
+                Priority
+              </label>
+              <select
+                name="priority"
+                value={form.priority}
+                onChange={onChange}
+                className={`${inputClass} cursor-pointer`}
+              >
+                {Object.entries(PRIORITY_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1.5 ${styles.label}`}>
+                Assignee
+              </label>
+              <input
+                name="assignee"
+                value={form.assignee}
+                onChange={onChange}
+                placeholder="Name..."
+                className={inputClass}
+              />
+            </div>
           </div>
 
-          <div className="flex justify-between items-center pt-4">
-            {isEditing ? (
+          {/* Actions */}
+          <div className={`flex justify-between pt-4 border-t ${styles.headerBorder}`}>
+            {isEdit ? (
               <button
                 type="button"
                 onClick={onRequestDelete}
-                className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                className={`px-4 py-2 text-sm rounded-lg transition-colors ${styles.deleteBtn}`}
               >
                 Delete
               </button>
             ) : <span />}
 
             <div className="flex gap-3">
-              <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : isEditing ? 'Update Task' : 'Create Task'}
-              </Button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`px-4 py-2 text-sm rounded-lg transition-colors ${styles.cancelBtn}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                {isEdit ? 'Update' : 'Create'}
+              </button>
             </div>
           </div>
         </form>
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 });
 
 TaskModal.displayName = 'TaskModal';
-
 export default TaskModal;

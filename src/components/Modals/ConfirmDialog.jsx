@@ -1,5 +1,6 @@
 import { memo, useEffect } from 'react';
-import Button from '../UI/Button';
+import { createPortal } from 'react-dom';
+import { useTheme } from '../../context/ThemeContext';
 
 const WarningIcon = () => (
   <svg className="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -7,16 +8,19 @@ const WarningIcon = () => (
   </svg>
 );
 
-const ConfirmDialog = memo(({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
+const ConfirmDialog = memo(({
+  isOpen,
+  onClose,
+  onConfirm,
   title = 'Confirm Action',
   message = 'Are you sure you want to proceed?',
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   variant = 'danger'
 }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   useEffect(() => {
     const handleEscape = (e) => e.key === 'Escape' && onClose();
     if (isOpen) {
@@ -31,22 +35,67 @@ const ConfirmDialog = memo(({
 
   if (!isOpen) return null;
 
-  return (
+  // Theme-based styles
+  const styles = {
+    backdrop: isDark ? 'bg-black/60' : 'bg-black/40',
+    modal: isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200',
+    title: isDark ? 'text-white' : 'text-gray-900',
+    message: isDark ? 'text-gray-400' : 'text-gray-600',
+    cancelBtn: isDark
+      ? 'text-gray-300 bg-gray-800 hover:bg-gray-700 border-gray-700'
+      : 'text-gray-600 bg-gray-100 hover:bg-gray-200 border-gray-200',
+  };
+
+  // Confirm button styles based on variant
+  const confirmBtnStyles = {
+    danger: 'bg-red-600 hover:bg-red-700 text-white',
+    warning: 'bg-yellow-600 hover:bg-yellow-700 text-white',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+  };
+
+  const dialogContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 text-center">
-        <div className="flex justify-center mb-4"><WarningIcon /></div>
-        <h3 className="text-xl font-bold mb-2">{title}</h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+      {/* Backdrop */}
+      <div className={`absolute inset-0 backdrop-blur-sm ${styles.backdrop}`} onClick={onClose} />
+
+      {/* Modal */}
+      <div className={`relative w-full max-w-md rounded-2xl shadow-2xl border p-6 text-center ${styles.modal}`}>
+        {/* Icon */}
+        <div className="flex justify-center mb-4">
+          <WarningIcon />
+        </div>
+
+        {/* Title */}
+        <h3 className={`text-xl font-bold mb-2 ${styles.title}`}>
+          {title}
+        </h3>
+
+        {/* Message */}
+        <p className={`mb-6 ${styles.message}`}>
+          {message}
+        </p>
+
+        {/* Actions */}
         <div className="flex justify-center gap-3">
-          <Button variant="secondary" onClick={onClose}>{cancelText}</Button>
-          <Button variant={variant} onClick={onConfirm}>{confirmText}</Button>
+          <button
+            onClick={onClose}
+            className={`px-5 py-2.5 text-sm font-medium rounded-lg border transition-colors ${styles.cancelBtn}`}
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors ${confirmBtnStyles[variant] || confirmBtnStyles.danger}`}
+          >
+            {confirmText}
+          </button>
         </div>
       </div>
     </div>
   );
+
+  return createPortal(dialogContent, document.body);
 });
 
 ConfirmDialog.displayName = 'ConfirmDialog';
-
 export default ConfirmDialog;

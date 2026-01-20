@@ -5,7 +5,7 @@ import TaskModal from "../Modals/TaskModal";
 import { PRIORITY_LABELS } from "../../constants";
 
 const Header = () => {
-  const { theme, toggleTheme } = useTheme();
+  const {  toggleTheme, isDark } = useTheme();
   const { searchQuery, setSearchQuery, priorityFilter, setPriorityFilter } =
     useBoard();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,7 +33,7 @@ const Header = () => {
             </div>
 
             {/* Search + Filter */}
-            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:max-w-2xl">
+            <div className="flex flex-1  gap-3 sm:flex-row sm:items-center sm:max-w-2xl">
               {/* Search */}
               <div className="relative flex-1">
                 <svg
@@ -90,31 +90,18 @@ const Header = () => {
             <div className="flex items-center gap-2">
               {/* Theme Toggle */}
               <button
-                onClick={toggleTheme}
-                className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition"
-                aria-label="Toggle theme"
-              >
-                {theme === "dark" ? (
-                  // Sun
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 18a6 6 0 100-12 6 6 0 000 12z" />
-                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                  </svg>
-                ) : (
-                  // Moon
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
-                  </svg>
-                )}
-              </button>
+      onClick={toggleTheme}
+      className="
+        p-2 rounded-lg
+        bg-gray-100 dark:bg-gray-800
+        text-gray-600 dark:text-gray-300
+        hover:bg-gray-200 dark:hover:bg-gray-700
+        transition-colors
+      "
+      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+    >
+      {isDark ? '☀️' : '🌙'}
+    </button>
 
               {/* Add Task */}
               <button
