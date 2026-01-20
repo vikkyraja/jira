@@ -2,44 +2,34 @@ import { useState, useEffect, useCallback } from 'react';
 
 export const useLocalStorage = (key, initialValue) => {
 
-  const getStoredValue = useCallback(() => {
+  const [value, setValue] = useState(() => {
     try {
-      const item = window.localStorage.getItem(key);
+      const item = localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
+    } catch {
       return initialValue;
     }
-  }, [key, initialValue]);
+  });
 
-  const [storedValue, setStoredValue] = useState(getStoredValue);
 
-  // Update localStorage when value changes
-  const setValue = useCallback(
-    (value) => {
-      try {
-        const valueToStore = value instanceof Function ? value(storedValue) : value;
-        setStoredValue(valueToStore);
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
-      } catch (error) {
-        console.error(`Error setting localStorage key "${key}":`, error);
-      }
-    },
-    [key, storedValue]
-  );
-
- 
   useEffect(() => {
-    const handleStorageChange = (e) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.error('localStorage error:', e);
+    }
+  }, [key, value]);
+
+  // Sync across browser tabs
+  useEffect(() => {
+    const onStorage = (e) => {
       if (e.key === key && e.newValue) {
-        setStoredValue(JSON.parse(e.newValue));
+        setValue(JSON.parse(e.newValue));
       }
     };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [key]);
 
-  return [storedValue, setValue];
+  return [value, setValue];
 };
-
